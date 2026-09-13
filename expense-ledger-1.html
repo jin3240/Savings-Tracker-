@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Household Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" onerror="window.__fbLoadFailed=true"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" onerror="window.__fbLoadFailed=true"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js" onerror="window.__fbLoadFailed=true"></script>
+<style>
+  :root{
+    --bg:#EFF1EC;
+    --surface:#FFFFFF;
+    --ink:#1D2521;
+    --muted:#6B7268;
+    --line:#DADDD3;
+    --brand:#2C4A43;
+    --brand-soft:#DCE6E1;
+    --good:#3E7A55;
+    --warn:#B98900;
+    --over:#B23A2E;
+    --income:#2C5A8A;
+    --income-soft:#DCE6EF;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'IBM Plex Sans', system-ui, sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{
+    max-width:480px;
+    margin:0 auto;
+    padding:20px 18px 100px;
+  }
+  h1{
+    font-family:'Source Serif 4', serif;
+    font-weight:600;
+    font-size:26px;
+    margin:0 0 4px;
+    letter-spacing:-0.01em;
+  }
+  .subtitle{
+    color:var(--muted);
+    font-size:13px;
+    margin:0 0 22px;
+    line-height:1.5;
+  }
+  .month-nav{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:18px;
+  }
+  .month-nav button{
+    background:none;
+    border:1px solid var(--line);
+    border-radius:6px;
+    width:32px;
+    height:32px;
+    font-size:16px;
+    color:var(--brand);
+    cursor:pointer;
+  }
+  .month-nav button:active{background:var(--brand-soft);}
+  .month-label{
+    font-family:'Source Serif 4', serif;
+    font-size:16px;
+    font-weight:600;
+  }
+  .overview{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:16px 18px;
+    margin-bottom:26px;
+  }
+  .overview-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    padding:7px 0;
+    border-bottom:1px solid var(--line);
+    font-size:13.5px;
+  }
+  .overview-row:last-child{border-bottom:none;}
+  .overview-row .label{color:var(--muted);}
+  .overview-row .val{font-family:'IBM Plex Mono', monospace; font-weight:500;}
+  .overview-row.savings{padding-top:12px;}
+  .overview-row.savings .label{color:var(--ink); font-weight:600; font-size:14.5px;}
+  .overview-row.savings .val{font-size:19px; font-weight:600;}
+  .summary{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:18px 18px 16px;
+    margin-bottom:16px;
+  }
+  .summary-top{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    margin-bottom:10px;
+  }
+  .summary-total{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:26px;
+    font-weight:600;
+  }
+  .summary-target{
+    color:var(--muted);
+    font-size:13px;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  .bar-track{
+    height:7px;
+    border-radius:4px;
+    background:var(--brand-soft);
+    overflow:hidden;
+    margin-bottom:4px;
+  }
+  .bar-fill{
+    height:100%;
+    background:var(--brand);
+    border-radius:4px;
+    transition:width .3s ease;
+  }
+  .summary-status{
+    font-size:12.5px;
+    color:var(--muted);
+  }
+  .section-block{margin-bottom:34px;}
+  .section-title{
+    font-family:'Source Serif 4', serif;
+    font-size:19px;
+    font-weight:600;
+    margin:0 0 4px;
+  }
+  .section-sub{
+    color:var(--muted);
+    font-size:12.5px;
+    margin:0 0 14px;
+  }
+  .cat-block{margin-bottom:16px;}
+  .cat-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:10px 0;
+    border-bottom:1px solid var(--line);
+    cursor:pointer;
+  }
+  .cat-row:last-child{border-bottom:none;}
+  .cat-name{font-weight:600; font-size:14.5px;}
+  .cat-figures{
+    text-align:right;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13.5px;
+  }
+  .cat-figures .of-target{color:var(--muted);}
+  .cat-bar{margin:6px 0 0;}
+  .cat-bar .bar-track{height:5px; margin-bottom:0;}
+  .subcats{
+    padding-left:2px;
+    margin-top:4px;
+    display:none;
+  }
+  .subcats.open{display:block;}
+  .subcat-row{
+    display:flex;
+    justify-content:space-between;
+    padding:7px 0 7px 14px;
+    border-left:2px solid var(--line);
+    font-size:13px;
+    color:var(--muted);
+  }
+  .subcat-row span:last-child{
+    font-family:'IBM Plex Mono', monospace;
+    color:var(--ink);
+  }
+  .chevron{
+    display:inline-block;
+    margin-left:6px;
+    transition:transform .2s ease;
+    color:var(--muted);
+    font-size:11px;
+  }
+  .chevron.open{transform:rotate(90deg);}
+  .entry{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:16px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    margin-top:14px;
+  }
+  .field-row{display:flex; gap:10px;}
+  .field{flex:1; display:flex; flex-direction:column; gap:4px;}
+  label{font-size:11.5px; color:var(--muted); font-weight:500;}
+  input, select{
+    font-family:'IBM Plex Sans', sans-serif;
+    font-size:14.5px;
+    padding:9px 10px;
+    border:1px solid var(--line);
+    border-radius:7px;
+    background:#FCFCFA;
+    color:var(--ink);
+    width:100%;
+  }
+  input:focus, select:focus{
+    outline:2px solid var(--brand);
+    outline-offset:1px;
+  }
+  input[type="text"][inputmode="decimal"]{font-family:'IBM Plex Mono', monospace;}
+  .add-btn{
+    margin-top:4px;
+    background:var(--brand);
+    color:#fff;
+    border:none;
+    border-radius:7px;
+    padding:11px;
+    font-size:14.5px;
+    font-weight:600;
+    cursor:pointer;
+    font-family:'IBM Plex Sans', sans-serif;
+  }
+  .add-btn.income-btn{background:var(--income);}
+  .add-btn:active{opacity:.85;}
+  .error{color:var(--over); font-size:12.5px; display:none;}
+  .week-group{margin-top:18px;}
+  .week-title{
+    font-size:12px;
+    text-transform:uppercase;
+    letter-spacing:.03em;
+    color:var(--muted);
+    margin-bottom:6px;
+  }
+  .entry-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:10px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .entry-main{flex:1; min-width:0;}
+  .entry-cat{font-size:13.5px; font-weight:500;}
+  .entry-note{font-size:12px; color:var(--muted); margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .entry-date{font-size:11px; color:var(--muted); font-family:'IBM Plex Mono', monospace; margin-top:1px;}
+  .entry-amount{font-family:'IBM Plex Mono', monospace; font-size:14px; margin-left:10px; white-space:nowrap;}
+  .del-btn{
+    background:none;
+    border:none;
+    color:var(--muted);
+    font-size:16px;
+    cursor:pointer;
+    padding:2px 0 2px 10px;
+  }
+  .del-btn:active{color:var(--over);}
+  .empty-state{
+    color:var(--muted);
+    font-size:13px;
+    padding:16px 0;
+    text-align:center;
+    border:1px dashed var(--line);
+    border-radius:8px;
+    margin-top:14px;
+  }
+  .flat-list{margin-top:14px;}
+  .loading{
+    text-align:center;
+    color:var(--muted);
+    padding:40px 0;
+    font-size:13px;
+  }
+  .sync-note{
+    text-align:center;
+    color:var(--muted);
+    font-size:11.5px;
+    margin-top:24px;
+  }
+  .pin-screen{
+    max-width:320px;
+    margin:80px auto 0;
+    text-align:center;
+    padding:0 18px;
+  }
+  .pin-screen h1{font-size:22px; margin-bottom:6px;}
+  .pin-screen p{color:var(--muted); font-size:13px; margin-bottom:20px;}
+  .pin-input{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:22px;
+    letter-spacing:6px;
+    text-align:center;
+    padding:12px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    width:100%;
+    margin-bottom:12px;
+  }
+  .pin-error{color:var(--over); font-size:12.5px; display:none; margin-bottom:10px;}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="loading" id="loading">Loading…</div>
+</div>
+
+<script>
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDMh_5QFC_O5JBum9jQwRUPL66seEEGNHc",
+  authDomain: "savings-tracker-33461.firebaseapp.com",
+  databaseURL: "https://savings-tracker-33461-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "savings-tracker-33461",
+  storageBucket: "savings-tracker-33461.firebasestorage.app",
+  messagingSenderId: "451640022249",
+  appId: "1:451640022249:web:4ead6462886ecbd786cc78"
+};
+const APP_PIN = "5490";
+const UNLOCK_KEY = "ledgerUnlocked";
+
+const EXPENSE_CATEGORIES = {
+  groceries: { label: 'Groceries', target: 200, subs: ['Lidl / Supermarket', 'Meat & Fish (Fresh)', 'Asian Supermarket'] },
+  transport: { label: 'Transport', target: 200, subs: null },
+  shopping:  { label: 'Shopping', target: 50, subs: ['Online', 'Offline'] },
+  takeaway:  { label: 'Takeaway', target: 50, subs: null }
+};
+const EXPENSE_TARGET_TOTAL = 500;
+
+const OUTGOING_CATEGORIES = {
+  rent: 'Rent',
+  utilities: 'Utility bill',
+  wifi: 'WiFi bill',
+  amex: 'Amex payment',
+  familySupport: 'Family support (India)',
+  credit: 'Credit payments',
+  other: 'Other'
+};
+
+const INCOME_SOURCES = {
+  mySalary: 'My salary',
+  wifeSalary: "Wife's salary",
+  other: 'Other income'
+};
+
+let currentMonth = monthKey(new Date());
+let data = { expenses: [], outgoing: [], income: [] };
+let openCats = { groceries: true };
+let dbRef = null;
+let db = null;
+
+function monthKey(d){
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+}
+function monthLabel(key){
+  const [y,m] = key.split('-').map(Number);
+  return new Date(y, m-1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+}
+function fmt(n){
+  const sign = n < 0 ? '-' : '';
+  return sign + '£' + Math.abs(n).toFixed(2);
+}
+function uid(){
+  return 'e' + Date.now() + Math.floor(Math.random()*1000);
+}
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ---------- PIN gate ----------
+function showPinGate(errorMsg){
+  document.getElementById('app').innerHTML =
+    '<div class="pin-screen">' +
+      '<h1>Household Ledger</h1>' +
+      '<p>Enter the shared PIN to continue.</p>' +
+      '<input type="password" inputmode="numeric" maxlength="6" class="pin-input" id="pin-input" placeholder="••••">' +
+      '<div class="pin-error" id="pin-error">' + (errorMsg || 'Incorrect PIN, try again.') + '</div>' +
+      '<button type="button" class="add-btn" onclick="checkPin()">Unlock</button>' +
+    '</div>';
+  if (errorMsg) document.getElementById('pin-error').style.display = 'block';
+  const inp = document.getElementById('pin-input');
+  inp.focus();
+  inp.addEventListener('keydown', function(ev){ if (ev.key === 'Enter') checkPin(); });
+}
+function checkPin(){
+  const val = document.getElementById('pin-input').value.trim();
+  if (val === APP_PIN){
+    try{ localStorage.setItem(UNLOCK_KEY, 'yes'); }catch(e){}
+    startApp();
+  } else {
+    showPinGate('Incorrect PIN, try again.');
+  }
+}
+
+// ---------- Firebase ----------
+function showConnectionError(message){
+  document.getElementById('app').innerHTML =
+    '<div class="pin-screen">' +
+      '<h1>Connection problem</h1>' +
+      '<p>' + escapeHtml(message) + ' Check your WiFi or mobile data, then try again.</p>' +
+      '<button type="button" class="add-btn" onclick="location.reload()">Retry</button>' +
+    '</div>';
+}
+
+function startApp(){
+  document.getElementById('app').innerHTML = '<div class="loading">Connecting…</div>';
+  if (window.__fbLoadFailed || typeof firebase === 'undefined'){
+    showConnectionError('Could not load the sync library.');
+    return;
+  }
+  try{
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.database();
+    let settled = false;
+    const timeoutId = setTimeout(function(){
+      if (!settled){
+        settled = true;
+        showConnectionError('Taking too long to connect.');
+      }
+    }, 10000);
+    firebase.auth().signInAnonymously().then(function(){
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      attachMonthListener(currentMonth);
+    }).catch(function(err){
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      showConnectionError('Sign-in failed (' + err.message + ').');
+    });
+  }catch(err){
+    showConnectionError('Setup error (' + err.message + ').');
+  }
+}
+
+function migrateLegacy(key){
+  try{
+    const raw = localStorage.getItem('ledger:' + key);
+    if (raw) return JSON.parse(raw);
+    const oldRaw = localStorage.getItem('expenses:' + key);
+    if (oldRaw){
+      const old = JSON.parse(oldRaw);
+      const expenses = old.map(e => {
+        if (e.category === 'grocery') return { id: e.id, date: e.date, amount: e.amount, category: 'groceries', sub: e.sub, note: e.note };
+        if (e.category === 'other' && e.sub === 'Takeaway') return { id: e.id, date: e.date, amount: e.amount, category: 'takeaway', sub: null, note: e.note };
+        if (e.category === 'other' && e.sub === 'Shopping') return { id: e.id, date: e.date, amount: e.amount, category: 'shopping', sub: null, note: e.note };
+        return { id: e.id, date: e.date, amount: e.amount, category: e.category, sub: e.sub || null, note: e.note };
+      });
+      return { expenses: expenses, outgoing: [], income: [] };
+    }
+  }catch(e){}
+  return null;
+}
+
+function attachMonthListener(key){
+  document.getElementById('app').innerHTML = '<div class="loading">Loading ledger…</div>';
+  if (dbRef) dbRef.off();
+  dbRef = db.ref('ledger/' + key);
+  dbRef.on('value', function(snapshot){
+    const val = snapshot.val();
+    if (val){
+      data = val;
+      if (!data.expenses) data.expenses = [];
+      if (!data.outgoing) data.outgoing = [];
+      if (!data.income) data.income = [];
+    } else {
+      const migrated = migrateLegacy(key);
+      data = migrated || { expenses: [], outgoing: [], income: [] };
+      if (data.expenses.length || data.outgoing.length || data.income.length){
+        dbRef.set(data);
+      }
+    }
+    render();
+  }, function(error){
+    showConnectionError('Database error (' + error.message + ').');
+  });
+}
+
+function saveMonth(){
+  if (dbRef) dbRef.set(data).catch(function(e){ console.error('Could not save', e); });
+}
+
+function changeMonth(delta){
+  const [y,m] = currentMonth.split('-').map(Number);
+  const d = new Date(y, m-1+delta, 1);
+  currentMonth = monthKey(d);
+  attachMonthListener(currentMonth);
+}
+
+function sumList(list){
+  return list.reduce((s,e) => s + e.amount, 0);
+}
+function totalsForExpenseCategory(catKey){
+  return data.expenses.filter(e => e.category === catKey).reduce((s,e) => s + e.amount, 0);
+}
+function totalForSub(catKey, sub){
+  return data.expenses.filter(e => e.category === catKey && e.sub === sub).reduce((s,e) => s + e.amount, 0);
+}
+function statusWord(spent, target){
+  if (spent <= target) return { word: 'on track', color: 'var(--good)' };
+  if (spent <= target * 1.1) return { word: 'slightly over', color: 'var(--warn)' };
+  return { word: 'over target', color: 'var(--over)' };
+}
+
+function weekStart(dateStr){
+  const d = new Date(dateStr + 'T00:00:00');
+  const day = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - day);
+  return d;
+}
+function groupByWeek(list){
+  const groups = {};
+  list.forEach(e => {
+    const ws = weekStart(e.date);
+    const key = ws.toISOString().slice(0,10);
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(e);
+  });
+  return Object.keys(groups).sort((a,b) => b.localeCompare(a)).map(key => ({
+    key,
+    label: 'Week of ' + new Date(key + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+    items: groups[key].sort((a,b) => b.date.localeCompare(a.date))
+  }));
+}
+
+function renderFlatList(list, labelFn, emptyText){
+  if (list.length === 0){
+    return '<div class="empty-state">' + emptyText + '</div>';
+  }
+  const sorted = [...list].sort((a,b) => b.date.localeCompare(a.date));
+  return '<div class="flat-list">' + sorted.map(e => {
+    const dateFmt = new Date(e.date + 'T00:00:00').toLocaleDateString('en-GB', { day:'numeric', month:'short' });
+    const noteLabel = e.note ? e.note : '';
+    return '<div class="entry-row">' +
+      '<div class="entry-main">' +
+        '<div class="entry-cat">' + labelFn(e) + '</div>' +
+        (noteLabel ? '<div class="entry-note">' + escapeHtml(noteLabel) + '</div>' : '') +
+        '<div class="entry-date">' + dateFmt + '</div>' +
+      '</div>' +
+      '<div class="entry-amount">' + fmt(e.amount) + '</div>' +
+      '<button class="del-btn" onclick="deleteEntry(\'' + e.listName + '\',\'' + e.id + '\')" aria-label="Delete entry">✕</button>' +
+    '</div>';
+  }).join('') + '</div>';
+}
+
+function render(){
+  const incomeTotal = sumList(data.income);
+  const expenseTotal = sumList(data.expenses);
+  const outgoingTotal = sumList(data.outgoing);
+  const savings = incomeTotal - expenseTotal - outgoingTotal;
+  const savingsColor = savings >= 0 ? 'var(--good)' : 'var(--over)';
+
+  const overviewHtml =
+    '<div class="overview">' +
+      '<div class="overview-row"><span class="label">Income</span><span class="val" style="color:var(--income);">' + fmt(incomeTotal) + '</span></div>' +
+      '<div class="overview-row"><span class="label">Expenses</span><span class="val">' + fmt(expenseTotal) + '</span></div>' +
+      '<div class="overview-row"><span class="label">Outgoing</span><span class="val">' + fmt(outgoingTotal) + '</span></div>' +
+      '<div class="overview-row savings"><span class="label">Savings this month</span><span class="val" style="color:' + savingsColor + ';">' + fmt(savings) + '</span></div>' +
+    '</div>';
+
+  const incomeListHtml = renderFlatList(
+    data.income.map(e => ({...e, listName:'income'})),
+    e => INCOME_SOURCES[e.source] || e.source,
+    'No income logged yet this month.'
+  );
+  const incomeHtml =
+    '<div class="section-block">' +
+      '<div class="section-title">Income</div>' +
+      '<div class="section-sub">Salaries and any other money coming in.</div>' +
+      incomeListHtml +
+      '<div class="entry">' +
+        '<div class="field-row">' +
+          '<div class="field"><label for="i-date">Date</label><input type="date" id="i-date"></div>' +
+          '<div class="field"><label for="i-amount">Amount (£)</label><input type="text" inputmode="decimal" id="i-amount" placeholder="0.00"></div>' +
+        '</div>' +
+        '<div class="field"><label for="i-source">Source</label><select id="i-source">' +
+          Object.keys(INCOME_SOURCES).map(k => '<option value="' + k + '">' + INCOME_SOURCES[k] + '</option>').join('') +
+        '</select></div>' +
+        '<div class="field"><label for="i-note">Note (optional)</label><input type="text" id="i-note" placeholder="e.g. September pay"></div>' +
+        '<div class="error" id="i-error">Enter a valid amount and date.</div>' +
+        '<button type="button" class="add-btn income-btn" onclick="handleAddIncome()">Add income</button>' +
+      '</div>' +
+    '</div>';
+
+  const outgoingListHtml = renderFlatList(
+    data.outgoing.map(e => ({...e, listName:'outgoing'})),
+    e => OUTGOING_CATEGORIES[e.category] || e.category,
+    'No outgoing bills logged yet this month.'
+  );
+  const outgoingHtml =
+    '<div class="section-block">' +
+      '<div class="section-title">Outgoing</div>' +
+      '<div class="section-sub">Fixed monthly bills and payments.</div>' +
+      outgoingListHtml +
+      '<div class="entry">' +
+        '<div class="field-row">' +
+          '<div class="field"><label for="o-date">Date</label><input type="date" id="o-date"></div>' +
+          '<div class="field"><label for="o-amount">Amount (£)</label><input type="text" inputmode="decimal" id="o-amount" placeholder="0.00"></div>' +
+        '</div>' +
+        '<div class="field"><label for="o-cat">Bill</label><select id="o-cat">' +
+          Object.keys(OUTGOING_CATEGORIES).map(k => '<option value="' + k + '">' + OUTGOING_CATEGORIES[k] + '</option>').join('') +
+        '</select></div>' +
+        '<div class="field"><label for="o-note">Note (optional)</label><input type="text" id="o-note" placeholder="e.g. October rent"></div>' +
+        '<div class="error" id="o-error">Enter a valid amount and date.</div>' +
+        '<button type="button" class="add-btn" onclick="handleAddOutgoing()">Add outgoing</button>' +
+      '</div>' +
+    '</div>';
+
+  const pct = Math.min(100, (expenseTotal / EXPENSE_TARGET_TOTAL) * 100);
+  const totalStatus = statusWord(expenseTotal, EXPENSE_TARGET_TOTAL);
+
+  let catBlocksHtml = '';
+  Object.keys(EXPENSE_CATEGORIES).forEach(key => {
+    const cat = EXPENSE_CATEGORIES[key];
+    const spent = totalsForExpenseCategory(key);
+    const catStatus = statusWord(spent, cat.target);
+    const catPct = Math.min(100, (spent / cat.target) * 100);
+    const hasSubs = !!cat.subs;
+    const isOpen = openCats[key];
+
+    let subsHtml = '';
+    if (hasSubs){
+      subsHtml = '<div class="subcats' + (isOpen ? ' open' : '') + '">' +
+        cat.subs.map(s => {
+          const subTotal = totalForSub(key, s);
+          return '<div class="subcat-row"><span>' + s + '</span><span>' + fmt(subTotal) + '</span></div>';
+        }).join('') +
+        '</div>';
+    }
+
+    catBlocksHtml += '<div class="cat-block">' +
+      '<div class="cat-row" ' + (hasSubs ? 'onclick="toggleCat(\'' + key + '\')"' : '') + '>' +
+        '<span class="cat-name">' + cat.label + (hasSubs ? '<span class="chevron' + (isOpen?' open':'') + '">▶</span>' : '') + '</span>' +
+        '<span class="cat-figures">' + fmt(spent) + ' <span class="of-target">/ ' + fmt(cat.target) + '</span></span>' +
+      '</div>' +
+      '<div class="cat-bar"><div class="bar-track"><div class="bar-fill" style="width:' + catPct + '%; background:' + catStatus.color + ';"></div></div></div>' +
+      subsHtml +
+    '</div>';
+  });
+
+  const weeks = groupByWeek(data.expenses);
+  let weeksHtml = '';
+  if (weeks.length === 0){
+    weeksHtml = '<div class="empty-state">No expenses logged yet this month — add your first one below.</div>';
+  } else {
+    weeks.forEach(w => {
+      weeksHtml += '<div class="week-group"><div class="week-title">' + w.label + '</div>' +
+        w.items.map(e => {
+          const subLabel = e.sub ? ' · ' + e.sub : '';
+          const noteLabel = e.note ? e.note : '';
+          const dateFmt = new Date(e.date + 'T00:00:00').toLocaleDateString('en-GB', { day:'numeric', month:'short' });
+          return '<div class="entry-row">' +
+            '<div class="entry-main">' +
+              '<div class="entry-cat">' + EXPENSE_CATEGORIES[e.category].label + subLabel + '</div>' +
+              (noteLabel ? '<div class="entry-note">' + escapeHtml(noteLabel) + '</div>' : '') +
+              '<div class="entry-date">' + dateFmt + '</div>' +
+            '</div>' +
+            '<div class="entry-amount">' + fmt(e.amount) + '</div>' +
+            '<button class="del-btn" onclick="deleteEntry(\'expenses\',\'' + e.id + '\')" aria-label="Delete entry">✕</button>' +
+          '</div>';
+        }).join('') +
+      '</div>';
+    });
+  }
+
+  const expensesHtml =
+    '<div class="section-block">' +
+      '<div class="section-title">Expenses</div>' +
+      '<div class="section-sub">Groceries, transport, shopping and takeaway.</div>' +
+      '<div class="summary">' +
+        '<div class="summary-top">' +
+          '<span class="summary-total">' + fmt(expenseTotal) + '</span>' +
+          '<span class="summary-target">of ' + fmt(EXPENSE_TARGET_TOTAL) + '</span>' +
+        '</div>' +
+        '<div class="bar-track"><div class="bar-fill" style="width:' + pct + '%; background:' + totalStatus.color + ';"></div></div>' +
+        '<div class="summary-status" style="color:' + totalStatus.color + ';">' + totalStatus.word + '</div>' +
+      '</div>' +
+      catBlocksHtml +
+      '<div class="entry">' +
+        '<div class="field-row">' +
+          '<div class="field"><label for="f-date">Date</label><input type="date" id="f-date"></div>' +
+          '<div class="field"><label for="f-amount">Amount (£)</label><input type="text" inputmode="decimal" id="f-amount" placeholder="0.00"></div>' +
+        '</div>' +
+        '<div class="field"><label for="f-cat">Category</label>' +
+          '<select id="f-cat" onchange="updateSubOptions()">' +
+            Object.keys(EXPENSE_CATEGORIES).map(k => '<option value="' + k + '">' + EXPENSE_CATEGORIES[k].label + '</option>').join('') +
+          '</select>' +
+        '</div>' +
+        '<div class="field" id="sub-field"></div>' +
+        '<div class="field"><label for="f-note">Note (optional)</label><input type="text" id="f-note" placeholder="e.g. weekly shop"></div>' +
+        '<div class="error" id="f-error">Enter a valid amount and date.</div>' +
+        '<button type="button" class="add-btn" onclick="handleAddExpense()">Add expense</button>' +
+      '</div>' +
+      '<div class="week-title" style="margin-top:20px;">This month\'s entries</div>' +
+      weeksHtml +
+    '</div>';
+
+  document.getElementById('app').innerHTML =
+    '<h1>Household Ledger</h1>' +
+    '<p class="subtitle">Amex statement closes on the 14th, payment due on the 26th.</p>' +
+    '<div class="month-nav">' +
+      '<button onclick="changeMonth(-1)" aria-label="Previous month">‹</button>' +
+      '<span class="month-label">' + monthLabel(currentMonth) + '</span>' +
+      '<button onclick="changeMonth(1)" aria-label="Next month">›</button>' +
+    '</div>' +
+    overviewHtml +
+    incomeHtml +
+    outgoingHtml +
+    expensesHtml +
+    '<div class="sync-note">Synced live — changes made on either phone appear here automatically.</div>';
+
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('f-date').value = today;
+  document.getElementById('o-date').value = today;
+  document.getElementById('i-date').value = today;
+  updateSubOptions();
+}
+
+function updateSubOptions(){
+  const catKey = document.getElementById('f-cat').value;
+  const cat = EXPENSE_CATEGORIES[catKey];
+  const field = document.getElementById('sub-field');
+  if (cat.subs){
+    field.innerHTML = '<label for="f-sub">Type</label><select id="f-sub">' +
+      cat.subs.map(s => '<option value="' + s + '">' + s + '</option>').join('') +
+    '</select>';
+  } else {
+    field.innerHTML = '';
+  }
+}
+
+function toggleCat(key){
+  openCats[key] = !openCats[key];
+  render();
+}
+
+function handleAddExpense(){
+  const date = document.getElementById('f-date').value;
+  const rawAmount = document.getElementById('f-amount').value.trim().replace(',', '.');
+  const amount = parseFloat(rawAmount);
+  const category = document.getElementById('f-cat').value;
+  const subEl = document.getElementById('f-sub');
+  const sub = subEl ? subEl.value : null;
+  const note = document.getElementById('f-note').value.trim();
+  const errorEl = document.getElementById('f-error');
+
+  if (!date || isNaN(amount) || amount <= 0){
+    errorEl.style.display = 'block';
+    return;
+  }
+  errorEl.style.display = 'none';
+  data.expenses.push({ id: uid(), date, amount, category, sub, note });
+  saveMonth();
+}
+
+function handleAddOutgoing(){
+  const date = document.getElementById('o-date').value;
+  const rawAmount = document.getElementById('o-amount').value.trim().replace(',', '.');
+  const amount = parseFloat(rawAmount);
+  const category = document.getElementById('o-cat').value;
+  const note = document.getElementById('o-note').value.trim();
+  const errorEl = document.getElementById('o-error');
+
+  if (!date || isNaN(amount) || amount <= 0){
+    errorEl.style.display = 'block';
+    return;
+  }
+  errorEl.style.display = 'none';
+  data.outgoing.push({ id: uid(), date, amount, category, note });
+  saveMonth();
+}
+
+function handleAddIncome(){
+  const date = document.getElementById('i-date').value;
+  const rawAmount = document.getElementById('i-amount').value.trim().replace(',', '.');
+  const amount = parseFloat(rawAmount);
+  const source = document.getElementById('i-source').value;
+  const note = document.getElementById('i-note').value.trim();
+  const errorEl = document.getElementById('i-error');
+
+  if (!date || isNaN(amount) || amount <= 0){
+    errorEl.style.display = 'block';
+    return;
+  }
+  errorEl.style.display = 'none';
+  data.income.push({ id: uid(), date, amount, source, note });
+  saveMonth();
+}
+
+function deleteEntry(listName, id){
+  data[listName] = data[listName].filter(e => e.id !== id);
+  saveMonth();
+}
+
+// ---------- boot ----------
+let unlocked = false;
+try{ unlocked = localStorage.getItem(UNLOCK_KEY) === 'yes'; }catch(e){}
+if (unlocked){
+  startApp();
+} else {
+  showPinGate('');
+  document.getElementById('pin-error').style.display = 'none';
+}
+</script>
+</body>
+</html>
